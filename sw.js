@@ -1,8 +1,8 @@
 // Service Worker: يخزن ملفات التطبيق حتى يفتح بدون إنترنت
-const CACHE = 'pumps-v1';
+const CACHE = 'pumps-v3';
 const FILES = [
   './', './index.html', './styles.css', './app.js', './store.js', './config.js',
-  './manifest.json', './icons/icon-192.png', './icons/icon-512.png'
+  './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/logo.png'
 ];
 
 self.addEventListener('install', e => {
@@ -19,7 +19,15 @@ self.addEventListener('activate', e => {
 // ملفات الموقع: من الشبكة أولاً (حتى توصل التحديثات)، وإذا ماكو نت من الكاش
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (e.request.method !== 'GET') return;
+  // خط Cairo من Google: من الكاش أولاً حتى يشتغل بدون نت
+  if (url.host === 'fonts.googleapis.com' || url.host === 'fonts.gstatic.com') {
+    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+      const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res;
+    })));
+    return;
+  }
+  if (url.origin !== location.origin) return;
   e.respondWith(
     fetch(e.request).then(res => {
       const copy = res.clone();

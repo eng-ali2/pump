@@ -4,23 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>مراقبة مضخات وحدة الأسفلت</title>
-  <meta name="theme-color" content="#0f4c5c">
-  <meta name="description" content="تسجيل قراءات المضخات والصيانة والأعطال مع لوحة تحكم وتقارير للمشرف">
+  <meta name="theme-color" content="#15213c">
+  <meta name="description" content="شركة مصافي الجنوب — تسجيل قراءات المضخات والصيانة والأعطال مع لوحة تحكم وتقارير للمشرف">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="مضخات الأسفلت">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="top" id="top" hidden>
-    <div class="brand"><img src="icons/icon-192.png" alt=""><span id="appName"></span></div>
-    <div class="who"><span id="whoName"></span><button class="link" id="logoutBtn">خروج</button></div>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#">
+        <img src="icons/logo.png" alt="شعار شركة مصافي الجنوب">
+        <span class="brand-t"><b id="appName"></b><small id="coName"></small></span>
+      </a>
+      <div class="who">
+        <span class="avatar" id="avatar"></span>
+        <span class="who-t"><b id="whoName"></b><small id="whoRole"></small></span>
+        <button class="icon-btn" id="logoutBtn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
+          <svg viewBox="0 0 24 24"><path d="M10 17l1.4-1.4L8.8 13H20v-2H8.8l2.6-2.6L10 7l-5 5zM4 5h8V3H4a2 2 0 00-2 2v14c0 1.1.9 2 2 2h8v-2H4z"/></svg>
+        </button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
   </header>
   <div class="demo-bar" id="demoBar" hidden>وضع تجريبي: البيانات محفوظة على هذا الجهاز فقط</div>
-  <nav class="tabs" id="tabs" hidden></nav>
   <main id="view"><div class="loading">جاري التحميل…</div></main>
+  <nav class="bnav" id="bnav"></nav>
+  <div class="sheet" id="sheet"></div>
   <div class="toast" id="toast"></div>
 
   <script src="config.js"></script>

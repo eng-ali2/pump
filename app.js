@@ -23,30 +23,58 @@ function toast(msg, bad) {
 }
 
 // ------------------------------------------------------------ التنقل
+const ICON = {
+  dash: '<path d="M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"/>',
+  readings: '<path d="M3 3h18v4H3zm0 7h18v4H3zm0 7h18v4H3z" opacity=".9"/>',
+  maint: '<path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>',
+  reports: '<path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>',
+  entry: '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/>',
+  'maint-entry': '<path d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z"/>',
+  pumps: '<path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 4l1.5 5.5L19 13l-5.5 1.5L12 20l-1.5-5.5L5 13l5.5-1.5z"/>',
+  users: '<path d="M16 11c1.7 0 3-1.3 3-3s-1.3-3-3-3-3 1.3-3 3 1.3 3 3 3zm-8 0c1.7 0 3-1.3 3-3S9.7 5 8 5 5 6.3 5 8s1.3 3 3 3zm0 2c-2.3 0-7 1.2-7 3.5V19h14v-2.5C15 14.2 10.3 13 8 13zm8 0c-.3 0-.6 0-1 .1 1.2.8 2 2 2 3.4V19h6v-2.5c0-2.3-4.7-3.5-7-3.5z"/>',
+  mine: '<path d="M14 2H6a2 2 0 00-2 2v16c0 1.1.9 2 2 2h12a2 2 0 002-2V8zm2 16H8v-2h8zm0-4H8v-2h8zm-3-5V3.5L18.5 9z"/>',
+  more: '<path d="M6 10a2 2 0 100 4 2 2 0 000-4zm12 0a2 2 0 100 4 2 2 0 000-4zm-6 0a2 2 0 100 4 2 2 0 000-4z"/>',
+};
+const ic = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
+// [المفتاح، الاسم، يظهر بالشريط السفلي للموبايل؟]
 const TABS = {
-  admin: [['dash', 'لوحة التحكم'], ['readings', 'القراءات'], ['maint', 'الصيانة والأعطال'], ['reports', 'التقارير'],
-          ['entry', 'إدخال قراءة'], ['maint-entry', 'تسجيل صيانة/عطل'], ['pumps', 'المضخات'], ['users', 'المستخدمين']],
-  operator: [['entry', 'إدخال قراءة'], ['maint-entry', 'تسجيل صيانة/عطل'], ['mine', 'سجلاتي']],
+  admin: [['dash', 'لوحة التحكم', 1], ['readings', 'القراءات', 1], ['entry', 'إدخال قراءة', 1], ['reports', 'التقارير', 1],
+          ['maint', 'الصيانة والأعطال'], ['maint-entry', 'تسجيل صيانة/عطل'], ['pumps', 'المضخات'], ['users', 'المستخدمين']],
+  operator: [['entry', 'إدخال قراءة', 1], ['maint-entry', 'صيانة / عطل', 1], ['mine', 'سجلاتي', 1]],
 };
 const ROUTES = {
   login: viewLogin, setup: viewSetup, dash: viewDash, readings: viewReadings, maint: viewMaint, reports: viewReports,
   entry: viewEntry, 'maint-entry': viewMaintEntry, pumps: viewPumps, users: viewUsers, mine: viewMine,
 };
 
+function renderNav(r) {
+  const tabs = TABS[store.user.role];
+  $('#tabs').innerHTML = `<div class="tabs-in">${tabs.map(([k, l]) => `<a href="#${k}" class="${k === r ? 'on' : ''}">${ic(k)}<span>${l}</span></a>`).join('')}</div>`;
+  const main = tabs.filter(t => t[2]), more = tabs.filter(t => !t[2]);
+  const moreOn = more.some(t => t[0] === r);
+  $('#bnav').innerHTML = main.map(([k, l]) => `<a href="#${k}" class="${k === r ? 'on' : ''}">${ic(k)}<span>${l}</span></a>`).join('')
+    + (more.length ? `<button id="moreBtn" class="${moreOn ? 'on' : ''}">${ic('more')}<span>المزيد</span></button>` : '');
+  $('#sheet').innerHTML = `<div class="sheet-in"><div class="grab"></div>${more.map(([k, l]) => `<a href="#${k}" class="${k === r ? 'on' : ''}">${ic(k)}<span>${l}</span></a>`).join('')}</div>`;
+  $('#bnav').classList.toggle('n' + (main.length + (more.length ? 1 : 0)), true);
+  const mb = $('#moreBtn'); if (mb) mb.onclick = () => $('#sheet').classList.add('open');
+}
+$('#sheet').onclick = e => { if (e.target.id === 'sheet' || e.target.closest('a')) $('#sheet').classList.remove('open'); };
+
 async function route() {
   const u = store.user;
   let r = location.hash.slice(1) || '';
+  document.body.classList.toggle('authed', !!u);
   if (!u) {
-    $('#top').hidden = $('#tabs').hidden = true;
     r = (store.mode === 'firebase' && await store.setupNeeded()) ? 'setup' : 'login';
   } else {
     const allowed = TABS[u.role].map(t => t[0]);
     if (!allowed.includes(r)) r = allowed[0];
-    $('#top').hidden = $('#tabs').hidden = false;
-    $('#whoName').textContent = u.name + (u.role === 'admin' ? ' (مشرف)' : '');
-    $('#tabs').innerHTML = TABS[u.role].map(([k, l]) => `<a href="#${k}" class="${k === r ? 'on' : ''}">${l}</a>`).join('');
-    $('#tabs .on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    $('#whoName').textContent = u.name;
+    $('#whoRole').textContent = u.role === 'admin' ? 'مشرف' : 'موظف';
+    $('#avatar').textContent = (u.name || '?').trim().charAt(0);
+    renderNav(r);
   }
+  window.scrollTo(0, 0);
   view.innerHTML = '<div class="loading">جاري التحميل…</div>';
   try { await ROUTES[r](); } catch (e) { console.error(e); view.innerHTML = `<div class="card err">صار خطأ: ${esc(e.message)}</div>`; }
 }
@@ -58,7 +86,7 @@ async function viewLogin() {
   const demo = store.mode === 'demo';
   view.innerHTML = `
   <div class="login-wrap">
-    <div class="logo"><img src="icons/icon-192.png" alt=""><h2>${esc(window.APP_NAME)}</h2></div>
+    <div class="logo"><img src="icons/logo.png" alt=""><h2>${esc(window.APP_NAME)}</h2><div class="muted">${esc(window.COMPANY_NAME)}</div></div>
     <form class="card" id="f">
       <div class="field"><label>اسم المستخدم</label><input name="u" autocomplete="username" autocapitalize="none" required></div>
       <div class="field"><label>كلمة المرور</label><input name="p" type="password" autocomplete="current-password" required></div>
@@ -84,7 +112,7 @@ async function viewLogin() {
 async function viewSetup() {
   view.innerHTML = `
   <div class="login-wrap">
-    <div class="logo"><img src="icons/icon-192.png" alt=""><h2>الإعداد الأول</h2></div>
+    <div class="logo"><img src="icons/logo.png" alt=""><h2>الإعداد الأول</h2></div>
     <form class="card" id="f">
       <p class="muted">هذا أول تشغيل للنظام. سوِّ حساب المشرف الرئيسي (يظهر هذا مرة وحدة بس).</p>
       <div class="field"><label>اسم المشرف</label><input name="n" required></div>
@@ -102,6 +130,12 @@ async function viewSetup() {
 }
 
 // ------------------------------------------------------------ إدخال قراءة
+const GROUPS = [
+  { t: 'السحب', en: 'Suction', k: ['p_suction', 't_suction'] },
+  { t: 'الدفع', en: 'Discharge', k: ['p_discharge'] },
+  { t: 'الميكانيكال سيل', en: 'Mechanical Seal', k: ['t_in_ms', 't_out_ms', 'p_ms'] },
+  { t: 'المحرك والهاوسنك', en: 'Motor & Housing', k: ['amp_motor', 't_motor', 't_housing'] },
+];
 async function viewEntry() {
   const ps = (await pumps()).filter(p => p.active);
   const u = store.user;
@@ -117,9 +151,12 @@ async function viewEntry() {
     <div class="field"><label>المضخة</label>
       <select name="pumpId" required>${ps.map(p => `<option value="${p.id}">${esc(p.tag)} — ${esc(p.name)}</option>`).join('')}</select>
     </div>
-    <div class="grid" id="vals">
-      ${FIELDS.map(f => `<div class="field"><label><b>${f.label}</b> · ${f.ar} <span class="ltr">(${f.unit})</span></label>
-        <input name="${f.k}" type="number" step="any" inputmode="decimal" required><div class="muted lim-hint" data-k="${f.k}"></div></div>`).join('')}
+    <div id="vals">
+      ${GROUPS.map(g => `<fieldset class="grp"><legend>${g.t} <span class="ltr">${g.en}</span></legend><div class="grid">
+        ${g.k.map(k => { const f = fieldOf(k); return `<div class="field"><label><b>${f.label}</b> · ${f.ar}</label>
+          <div class="unit-in"><input name="${f.k}" type="number" step="any" inputmode="decimal" required><span class="ltr">${f.unit}</span></div>
+          <div class="muted lim-hint" data-k="${f.k}"></div></div>`; }).join('')}
+      </div></fieldset>`).join('')}
     </div>
     <div class="field"><label>ملاحظات (اختياري)</label><textarea name="notes"></textarea></div>
     <button class="btn block">حفظ وإرسال القراءة</button>
@@ -543,7 +580,7 @@ async function viewUsers() {
 
 // ------------------------------------------------------------ تشغيل
 (async () => {
-  $('#appName').textContent = window.APP_NAME;
+  $('#appName').textContent = window.APP_NAME; $('#coName').textContent = window.COMPANY_NAME;
   $('#demoBar').hidden = store.mode !== 'demo';
   try { await store.init(); }
   catch (e) { console.error(e); view.innerHTML = `<div class="card err">ما كدرنا نتصل بقاعدة البيانات. تأكد من الإنترنت ومن إعدادات Firebase في ملف config.js<br><small class="ltr">${esc(e.message)}</small></div>`; return; }
