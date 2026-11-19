@@ -79,3 +79,4 @@ Firebase هو اللي يخزن البيانات، حتى كل الموظفين 
 | `styles.css` | التصميم |
 | `manifest.json` + `sw.js` + `icons/` | ملفات الـ PWA (التثبيت والعمل بدون نت) |
 | `firestore.rules` | قواعد الحماية، تنلصق في Firebase |
+a
