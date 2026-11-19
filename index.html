@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>مراقبة مضخات وحدة الأسفلت</title>
+  <meta name="theme-color" content="#0f4c5c">
+  <meta name="description" content="تسجيل قراءات المضخات والصيانة والأعطال مع لوحة تحكم وتقارير للمشرف">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="مضخات الأسفلت">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top" id="top" hidden>
+    <div class="brand"><img src="icons/icon-192.png" alt=""><span id="appName"></span></div>
+    <div class="who"><span id="whoName"></span><button class="link" id="logoutBtn">خروج</button></div>
+  </header>
+  <div class="demo-bar" id="demoBar" hidden>وضع تجريبي: البيانات محفوظة على هذا الجهاز فقط</div>
+  <nav class="tabs" id="tabs" hidden></nav>
+  <main id="view"><div class="loading">جاري التحميل…</div></main>
+  <div class="toast" id="toast"></div>
+
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
