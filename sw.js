@@ -1,5 +1,5 @@
 // Service Worker: يخزن ملفات التطبيق حتى يفتح بدون إنترنت
-const CACHE = 'pumps-v3';
+const CACHE = 'pumps-v4';
 const FILES = [
   './', './index.html', './styles.css', './app.js', './store.js', './config.js',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/logo.png'
@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
   }
   if (url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-cache' }).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;

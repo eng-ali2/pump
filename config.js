@@ -8,7 +8,14 @@
 //  الصق هنا إعدادات مشروع Firebase مالتك (راجع ملف README.md).
 // =============================================================
 
-window.FIREBASE_CONFIG = null;
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDRyAiMVwlXVKPzdhcWpWJ0IsSjzLjFV4U",
+  authDomain: "asphalt-pumps.firebaseapp.com",
+  projectId: "asphalt-pumps",
+  storageBucket: "asphalt-pumps.firebasestorage.app",
+  messagingSenderId: "1028260470346",
+  appId: "1:1028260470346:web:202025089ba515983150b3"
+};
 
 /* مثال بعد اللصق:
 window.FIREBASE_CONFIG = {
