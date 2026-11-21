@@ -29,4 +29,4 @@ window.FIREBASE_CONFIG = {
 */
 
 window.APP_NAME = "مراقبة مضخات وحدة الأسفلت";
-window.COMPANY_NAME = "شركة مصافي الجنوب";
+window.COMPANY_NAME = "مصفى ذي قار";

@@ -1,5 +1,5 @@
 // Service Worker: يخزن ملفات التطبيق حتى يفتح بدون إنترنت
-const CACHE = 'pumps-v6';
+const CACHE = 'pumps-v7';
 const FILES = [
   './', './index.html', './styles.css', './app.js', './store.js', './config.js',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/logo.png'
