@@ -1,5 +1,5 @@
 // Service Worker: يخزن ملفات التطبيق حتى يفتح بدون إنترنت
-const CACHE = 'pumps-v4';
+const CACHE = 'pumps-v6';
 const FILES = [
   './', './index.html', './styles.css', './app.js', './store.js', './config.js',
   './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/logo.png'
@@ -20,8 +20,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  // خط Cairo من Google: من الكاش أولاً حتى يشتغل بدون نت
-  if (url.host === 'fonts.googleapis.com' || url.host === 'fonts.gstatic.com') {
+    // الخطوط ومكتبة Firebase ما تتغير: من الكاش أولاً حتى يفتح التطبيق بسرعة
+  if (url.host === 'fonts.googleapis.com' || url.host === 'fonts.gstatic.com' ||
+      (url.host === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/'))) {
     e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(res => {
       const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return res;
     })));

@@ -130,6 +130,12 @@ class LocalStore {
     this.db.users.push({ id: uid(), username, password, name, role, active: true }); this._save();
   }
   async updateUser(id, patch) { Object.assign(this.db.users.find(u => u.id === id), patch); this._save(); }
+  async adminSetPassword(id, password) { this.db.users.find(u => u.id === id).password = password; this._save(); }
+  async changeOwnPassword(current, password) {
+    const u = this.db.users.find(x => x.id === this.user.id);
+    if (u.password !== current) throw new Error('كلمة المرور الحالية غلط');
+    u.password = password; this._save();
+  }
 
   async listPumps() { return [...this.db.pumps].sort((a, b) => a.tag.localeCompare(b.tag)); }
   async savePump(p) {
@@ -190,8 +196,12 @@ class FirebaseStore {
   }
 
   async setupNeeded() {
-    try { const s = await this.F.getDoc(this._doc('meta', 'setup')); return !s.exists(); }
-    catch { return false; }
+    try { if (localStorage.getItem('pumpsSetupDone')) return false; } catch {}
+    try {
+      const s = await this.F.getDoc(this._doc('meta', 'setup'));
+      if (s.exists()) { try { localStorage.setItem('pumpsSetupDone', '1'); } catch {} }
+      return !s.exists();
+    } catch { return false; }
   }
   // أول مرة فقط: إنشاء حساب المشرف
   async setupAdmin({ username, password, name }) {
@@ -201,6 +211,7 @@ class FirebaseStore {
       b.set(this._doc('users', cred.user.uid), { username: username.trim().toLowerCase(), name, role: 'admin', active: true });
       b.set(this._doc('meta', 'setup'), { done: true, at: Date.now() });
       await b.commit();
+      try { localStorage.setItem('pumpsSetupDone', '1'); } catch {}
       this.user = await this._profile(cred.user.uid);
       return this.user;
     } catch (e) { throw this._err(e); }
@@ -208,7 +219,7 @@ class FirebaseStore {
 
   async login(username, password) {
     try {
-      const cred = await this.A.signInWithEmailAndPassword(this.auth, this._email(username), password);
+      const cred = await this.A.signInWithEmailAndPassword(this.auth, await this._loginEmail(username), password);
       const p = await this._profile(cred.user.uid);
       if (!p || !p.active) { await this.A.signOut(this.auth); throw new Error(p ? 'هذا الحساب موقوف، راجع المشرف' : 'الحساب غير مسجل بالنظام'); }
       this.user = p; return p;
@@ -216,7 +227,52 @@ class FirebaseStore {
   }
   async logout() { await this.A.signOut(this.auth); this.user = null; }
 
-  async listUsers() { const s = await this.F.getDocs(this._col('users')); return s.docs.map(d => ({ id: d.id, ...d.data() })); }
+  // إذا المشرف غيّر كلمة مرور المستخدم، ينحفظ هنا الإيميل الداخلي الجديد
+  async _loginEmail(username) {
+    const un = username.trim().toLowerCase();
+    try { const s = await this.F.getDoc(this._doc('logins', un)); if (s.exists() && s.data().email) return s.data().email; } catch {}
+    return this._email(un);
+  }
+
+  async listUsers() {
+    const s = await this.F.getDocs(this._col('users'));
+    return s.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => !u.replacedBy);
+  }
+
+  // تغيير كلمة مرورك (يحتاج كلمة المرور الحالية)
+  async changeOwnPassword(current, password) {
+    try {
+      const fu = this.auth.currentUser;
+      await this.A.reauthenticateWithCredential(fu, this.A.EmailAuthProvider.credential(fu.email, current));
+      await this.A.updatePassword(fu, password);
+    } catch (e) {
+      const c = e.code || '';
+      if (c.includes('invalid-credential') || c.includes('wrong-password')) throw new Error('كلمة المرور الحالية غلط');
+      throw this._err(e);
+    }
+  }
+
+  // المشرف يغيّر كلمة مرور مستخدم ثاني:
+  // Firebase ما يسمح بهذا من المتصفح، فنسوي للمستخدم حساب دخول جديد بنفس اسم المستخدم والبيانات،
+  // ونوقف القديم. السجلات القديمة تبقى مربوطة بيه عن طريق prevIds.
+  async adminSetPassword(id, password) {
+    if (id === this.user.id) throw new Error('لتغيير كلمة مرورك استخدم زر المفتاح فوق');
+    try {
+      const old = await this._profile(id);
+      if (!old) throw new Error('المستخدم غير موجود');
+      const email = `${old.username}.${Date.now().toString(36)}${EMAIL_DOMAIN}`;
+      const sec = this.appM.initializeApp(this.cfg, 'sec-' + Date.now());
+      const secAuth = this.A.getAuth(sec);
+      const cred = await this.A.createUserWithEmailAndPassword(secAuth, email, password);
+      await this.A.signOut(secAuth); await this.appM.deleteApp(sec);
+      const { id: _, ...data } = old;
+      const b = this.F.writeBatch(this.fs);
+      b.set(this._doc('users', cred.user.uid), { ...data, prevIds: [...(old.prevIds || []), id] });
+      b.update(this._doc('users', id), { active: false, replacedBy: cred.user.uid });
+      b.set(this._doc('logins', old.username), { email, uid: cred.user.uid });
+      await b.commit();
+    } catch (e) { throw e.code ? this._err(e) : e; }
+  }
   async createUser({ username, password, name, role }) {
     // نستخدم نسخة ثانية من Firebase حتى ما يطلع المشرف من حسابه
     try {

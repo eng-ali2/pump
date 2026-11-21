@@ -78,8 +78,8 @@ async function route() {
   view.innerHTML = '<div class="loading">جاري التحميل…</div>';
   try { await ROUTES[r](); } catch (e) { console.error(e); view.innerHTML = `<div class="card err">صار خطأ: ${esc(e.message)}</div>`; }
 }
-window.addEventListener('hashchange', route);
-$('#logoutBtn').onclick = async () => { await store.logout(); pumpsCache = null; location.hash = ''; route(); };
+window.addEventListener('hashchange', () => route().then(refreshBell));
+$('#logoutBtn').onclick = async () => { await store.logout(); pumpsCache = null; $('#bellPanel').classList.remove('open'); location.hash = ''; await route(); refreshBell(); };
 
 // ------------------------------------------------------------ الدخول
 async function viewLogin() {
@@ -103,7 +103,7 @@ async function viewLogin() {
   $('#f').onsubmit = async e => {
     e.preventDefault();
     const b = e.target.querySelector('button'); b.disabled = true; $('#err').textContent = '';
-    try { await store.login(e.target.u.value, e.target.p.value); location.hash = ''; await route(); }
+    try { await store.login(e.target.u.value, e.target.p.value); location.hash = ''; await route(); refreshBell(); }
     catch (er) { $('#err').textContent = er.message; b.disabled = false; }
   };
   if (demo) $('#reset').onclick = async () => { await store.resetDemo(); pumpsCache = null; toast('تمت إعادة البيانات التجريبية'); };
@@ -297,7 +297,8 @@ async function viewMine() {
   await pumps();
   const from = addDays(today(), -6), to = today();
   const [rs, ms] = await Promise.all([store.readings(from, to), store.maint(from, to)]);
-  const mine = rs.filter(r => r.userId === store.user.id), myM = ms.filter(m => m.userId === store.user.id);
+  const ids = [store.user.id, ...(store.user.prevIds || [])];
+  const mine = rs.filter(r => ids.includes(r.userId)), myM = ms.filter(m => ids.includes(m.userId));
   view.innerHTML = `<h2>سجلاتي — آخر 7 أيام</h2>
     <div class="stats"><div class="stat"><div class="v">${mine.length}</div><div class="l">قراءة</div></div>
     <div class="stat"><div class="v">${myM.length}</div><div class="l">صيانة/عطل</div></div></div>
@@ -542,41 +543,140 @@ function pumpDialog(p) {
   });
 }
 
+// ------------------------------------------------------------ نافذة منبثقة عامة
+function formDialog(title, body, okText, onOk) {
+  const d = document.createElement('dialog');
+  d.innerHTML = `<form method="dialog"><div class="dh">${title}</div><div class="db">${body}<div class="err"></div></div>
+    <div class="df"><button class="btn" value="save">${okText}</button><button class="btn sec" value="cancel" formnovalidate>إلغاء</button></div></form>`;
+  document.body.appendChild(d); d.showModal();
+  const f = $('form', d);
+  f.onsubmit = async e => {
+    if (e.submitter?.value !== 'save') return;
+    e.preventDefault();
+    const b = e.submitter; b.disabled = true; $('.err', d).textContent = '';
+    try { await onOk(f); d.close(); }
+    catch (er) { $('.err', d).textContent = er.message; b.disabled = false; }
+  };
+  d.addEventListener('close', () => d.remove());
+  return f;
+}
+const minPw = () => store.mode === 'demo' ? 4 : 6;
+
 // ------------------------------------------------------------ المستخدمين
 async function viewUsers() {
   const us = (await store.listUsers()).sort((a, b) => (a.role > b.role ? 1 : -1) || a.name.localeCompare(b.name));
   view.innerHTML = `<h2>المستخدمين</h2><div class="actions" style="margin-bottom:12px"><button class="btn" id="add">+ إضافة مستخدم</button></div>
   <div class="tbl-wrap"><table><thead><tr><th class="l">الاسم</th><th>اسم المستخدم</th><th>الصلاحية</th><th>الحالة</th><th></th></tr></thead><tbody>
-  ${us.map(u => `<tr><td class="l">${esc(u.name)}</td><td class="ltr">${esc(u.username)}</td>
+  ${us.map(u => `<tr><td class="l">${esc(u.name)}${u.id === store.user.id ? ' <span class="muted">(أنت)</span>' : ''}</td><td class="ltr">${esc(u.username)}</td>
     <td>${u.role === 'admin' ? '<span class="pill warn">مشرف</span>' : 'موظف'}</td>
     <td>${u.active ? '<span class="pill ok">فعال</span>' : '<span class="pill bad">موقوف</span>'}</td>
-    <td>${u.id === store.user.id ? '<span class="muted">أنت</span>' : `<button class="btn sm sec" data-tog="${u.id}" data-a="${u.active ? 1 : 0}">${u.active ? 'إيقاف' : 'تفعيل'}</button>
-      <button class="btn sm sec" data-role="${u.id}" data-r="${u.role}">${u.role === 'admin' ? 'جعله موظف' : 'جعله مشرف'}</button>`}</td></tr>`).join('')}
+    <td><button class="btn sm sec" data-edit="${u.id}">✏️ تعديل</button></td></tr>`).join('')}
   </tbody></table></div>
   <p class="muted">الموظف يكدر يدخل قراءات وصيانة فقط. المشرف يشوف لوحة التحكم والتقارير ويدير المضخات والمستخدمين.</p>`;
-  $$('[data-tog]').forEach(b => b.onclick = async () => { try { await store.updateUser(b.dataset.tog, { active: b.dataset.a !== '1' }); viewUsers(); } catch (e) { toast(e.message, true); } });
-  $$('[data-role]').forEach(b => b.onclick = async () => { try { await store.updateUser(b.dataset.role, { role: b.dataset.r === 'admin' ? 'operator' : 'admin' }); viewUsers(); } catch (e) { toast(e.message, true); } });
-  $('#add').onclick = () => {
-    const d = document.createElement('dialog');
-    d.innerHTML = `<form method="dialog" id="uf"><div class="dh">إضافة مستخدم</div><div class="db">
+  $$('[data-edit]').forEach(b => b.onclick = () => editUser(us.find(u => u.id === b.dataset.edit)));
+  $('#add').onclick = () => formDialog('إضافة مستخدم', `
       <div class="field"><label>الاسم الكامل</label><input name="name" required></div>
       <div class="field"><label>اسم المستخدم (إنكليزي بدون فراغات)</label><input name="username" class="ltr" pattern="[A-Za-z0-9._\\-]+" autocapitalize="none" required></div>
-      <div class="field"><label>كلمة المرور (6 أحرف أو أكثر)</label><input name="password" class="ltr" minlength="${store.mode === 'demo' ? 4 : 6}" required></div>
-      <div class="field"><label>الصلاحية</label><select name="role"><option value="operator">موظف</option><option value="admin">مشرف</option></select></div>
-      <div class="err" id="uerr"></div></div>
-      <div class="df"><button class="btn" value="save">إضافة</button><button class="btn sec" value="cancel" formnovalidate>إلغاء</button></div></form>`;
-    document.body.appendChild(d); d.showModal();
-    const f = $('#uf', d);
-    f.onsubmit = async e => {
-      if (e.submitter?.value !== 'save') return;
-      e.preventDefault();
-      try { await store.createUser({ name: f.name.value.trim(), username: f.username.value, password: f.password.value, role: f.role.value });
-        d.close(); d.remove(); toast('تمت الإضافة'); viewUsers(); }
-      catch (er) { $('#uerr', d).textContent = er.message; }
-    };
-    d.addEventListener('close', () => d.remove());
-  };
+      <div class="field"><label>كلمة المرور (${minPw()} أحرف أو أكثر)</label><input name="password" class="ltr" minlength="${minPw()}" required></div>
+      <div class="field"><label>الصلاحية</label><select name="role"><option value="operator">موظف</option><option value="admin">مشرف</option></select></div>`,
+    'إضافة', async f => {
+      await store.createUser({ name: f.name.value.trim(), username: f.username.value, password: f.password.value, role: f.role.value });
+      toast('تمت الإضافة'); viewUsers();
+    });
 }
+
+function editUser(u) {
+  const self = u.id === store.user.id;
+  formDialog('تعديل مستخدم: ' + esc(u.name), `
+    <div class="field"><label>اسم المستخدم</label><input class="ltr" value="${esc(u.username)}" disabled></div>
+    <div class="field"><label>الاسم الكامل</label><input name="name" value="${esc(u.name)}" required></div>
+    ${self ? '<p class="muted">لتغيير صلاحيتك أو كلمة مرورك: الصلاحية يغيّرها مشرف ثاني، وكلمة المرور من زر 🔑 بالأعلى.</p>' : `
+    <div class="row">
+      <div class="field"><label>الصلاحية</label><select name="role"><option value="operator">موظف</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>مشرف</option></select></div>
+      <div class="field"><label>الحالة</label><select name="active"><option value="1">فعال</option><option value="0" ${u.active ? '' : 'selected'}>موقوف</option></select></div>
+    </div>
+    <fieldset class="grp"><legend>🔑 تغيير كلمة المرور</legend>
+      <div class="field"><label>كلمة المرور الجديدة (اتركها فارغة إذا ما تريد تغيّرها)</label>
+        <input name="pw" class="ltr" minlength="${minPw()}" autocomplete="new-password"></div>
+    </fieldset>`}`,
+    'حفظ', async f => {
+      const patch = { name: f.name.value.trim() };
+      if (!self) { patch.role = f.role.value; patch.active = f.active.value === '1'; }
+      await store.updateUser(u.id, patch);
+      if (!self && f.pw.value) await store.adminSetPassword(u.id, f.pw.value);
+      if (self) { store.user.name = patch.name; $('#whoName').textContent = patch.name; }
+      toast(!self && f.pw.value ? 'تم الحفظ وتغيّرت كلمة المرور ✓' : 'تم الحفظ ✓'); viewUsers();
+    });
+}
+
+// تغيير كلمة مروري (لكل المستخدمين)
+$('#pwBtn').onclick = () => formDialog('🔑 تغيير كلمة المرور', `
+  <div class="field"><label>كلمة المرور الحالية</label><input name="cur" type="password" class="ltr" autocomplete="current-password" required></div>
+  <div class="field"><label>كلمة المرور الجديدة (${minPw()} أحرف أو أكثر)</label><input name="pw" type="password" class="ltr" minlength="${minPw()}" autocomplete="new-password" required></div>
+  <div class="field"><label>تأكيد كلمة المرور الجديدة</label><input name="pw2" type="password" class="ltr" autocomplete="new-password" required></div>`,
+  'تغيير', async f => {
+    if (f.pw.value !== f.pw2.value) throw new Error('كلمتا المرور غير متطابقتين');
+    await store.changeOwnPassword(f.cur.value, f.pw.value);
+    toast('تغيّرت كلمة المرور ✓');
+  });
+
+// ------------------------------------------------------------ جرس التنبيهات
+const bell = { items: [], timer: null };
+const seenKey = () => 'pumpsBellSeen_' + (store.user?.id || '');
+async function refreshBell() {
+  const btn = $('#bellBtn');
+  if (!store.user || store.user.role !== 'admin') { btn.hidden = true; return; }
+  btn.hidden = false;
+  try {
+    const ps = await pumps(); const t = today(), y = addDays(t, -1);
+    const [rs, ms] = await Promise.all([store.readings(y, t), store.maint(addDays(t, -60), t)]);
+    const items = [];
+    rs.filter(r => r.alarms?.length).forEach(r => {
+      const p = ps.find(x => x.id === r.pumpId); const lim = p?.limits || {};
+      r.alarms.forEach(k => {
+        const f = fieldOf(k); const v = r[k]; const l = lim[k] || {};
+        const low = num(l.min) !== null && v < +l.min;
+        items.push({ ts: r.ts, kind: low ? 'low' : 'high', pumpId: r.pumpId,
+          title: `${r.pumpTag} · ${f.label}`,
+          text: `\u2066${fmt(v)} ${f.unit}\u2069 — ${low ? `أقل من الحد (${l.min})` : `أعلى من الحد (${l.max})`}`,
+          sub: `${r.date === t ? 'اليوم' : 'أمس'} ${r.time} · ${r.userName}`, href: '#readings' });
+      });
+    });
+    ms.filter(m => m.kind === 'fault' && m.status === 'open').forEach(m => items.push({ ts: m.ts, kind: 'fault', pumpId: m.pumpId,
+      title: `${m.pumpTag} · عطل مفتوح`, text: m.work, sub: `${m.date} ${m.time} · ${m.userName}`, href: '#maint' }));
+    items.sort((a, b) => b.ts - a.ts);
+    bell.items = items;
+    let seen = 0; try { seen = +localStorage.getItem(seenKey()) || 0; } catch {}
+    const unseen = items.filter(i => i.ts > seen).length;
+    $('#bellCount').textContent = unseen > 99 ? '99+' : unseen;
+    $('#bellCount').hidden = !unseen;
+    btn.classList.toggle('ring', unseen > 0);
+    if ($('#bellPanel').classList.contains('open')) renderBell();
+  } catch (e) { console.error(e); }
+}
+function renderBell() {
+  const it = bell.items;
+  const ico = { low: '⬇️', high: '⬆️', fault: '🛠️' };
+  $('#bellPanel').innerHTML = `<div class="bp-h"><b>🛎️ التنبيهات</b><span class="muted">${it.length} تنبيه (آخر يومين + الأعطال المفتوحة)</span></div>
+    <div class="bp-list">${it.length ? it.slice(0, 60).map(i => `<a class="bp-i ${i.kind}" href="${i.href}" data-pump="${i.pumpId}">
+      <span class="bp-ic">${ico[i.kind]}</span><span class="bp-t"><b class="ltr">${esc(i.title)}</b><span>${esc(i.text)}</span><small>${esc(i.sub)}</small></span></a>`).join('')
+      : '<div class="bp-empty">ماكو تنبيهات، كل القراءات ضمن الحدود 👍</div>'}</div>`;
+  $$('#bellPanel .bp-i').forEach(a => a.onclick = () => {
+    if (a.getAttribute('href') === '#readings') rf = { from: addDays(today(), -1), to: today(), pump: a.dataset.pump, alarms: true };
+    $('#bellPanel').classList.remove('open');
+  });
+}
+$('#bellBtn').onclick = e => {
+  e.stopPropagation();
+  const p = $('#bellPanel'); const open = !p.classList.contains('open');
+  p.classList.toggle('open', open);
+  if (open) {
+    renderBell();
+    try { localStorage.setItem(seenKey(), Date.now()); } catch {}
+    $('#bellCount').hidden = true; $('#bellBtn').classList.remove('ring');
+  }
+};
+document.addEventListener('click', e => { if (!e.target.closest('#bellPanel')) $('#bellPanel').classList.remove('open'); });
 
 // ------------------------------------------------------------ تشغيل
 (async () => {
@@ -584,5 +684,7 @@ async function viewUsers() {
   $('#demoBar').hidden = store.mode !== 'demo';
   try { await store.init(); }
   catch (e) { console.error(e); view.innerHTML = `<div class="card err">ما كدرنا نتصل بقاعدة البيانات. تأكد من الإنترنت ومن إعدادات Firebase في ملف config.js<br><small class="ltr">${esc(e.message)}</small></div>`; return; }
-  route();
+  await route();
+  refreshBell();
+  bell.timer = setInterval(refreshBell, 60000);
 })();

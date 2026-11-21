@@ -25,6 +25,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ربط اسم المستخدم بحساب الدخول (بعد تغيير كلمة المرور من المشرف)
+    match /logins/{username} {
+      allow get: if true;
+      allow write: if isAdmin();
+    }
+
     match /pumps/{id} {
       allow read: if active();
       allow write: if isAdmin();
