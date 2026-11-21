@@ -262,3 +262,14 @@ body:not(.authed) .login-wrap .logo img { box-shadow: 0 10px 40px rgba(45,212,19
 body:not(.authed) .card { border: 0; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
 body:not(.authed) .hint { background: rgba(255,255,255,.07); color: #d7e3f4; border: 1px solid rgba(167,243,231,.2); }
 body:not(.authed) .hint .btn.sec { background: transparent; color: var(--mint); border-color: var(--mint); }
+
+/* توقيع المطوّر أسفل كل الصفحات */
+.credit { text-align: center; font-size: 12px; color: var(--mut); padding: 4px 10px 18px; }
+.credit b { color: var(--pri-2); font-weight: 700; }
+body:not(.authed) .credit { color: rgba(215,227,244,.7); padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+body:not(.authed) .credit b { color: var(--mint); }
+@media (max-width: 760px) {
+  body.authed main { padding-bottom: 8px; }
+  body.authed .credit { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+@media print { .credit { padding: 10px 0 0; } }
